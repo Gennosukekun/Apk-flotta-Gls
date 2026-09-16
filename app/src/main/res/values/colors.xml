@@ -1,1 +1,15 @@
-<resources><color name="primary">#173B57</color><color name="primary_dark">#0E293D</color></resources>
+<resources>
+    <color name="primary">#1D4ED8</color>
+    <color name="primary_dark">#173B57</color>
+    <color name="app_background">#F3F6FA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="surface_input">#F8FAFB</color>
+    <color name="surface_message">#EAF2F6</color>
+    <color name="text_primary">#172033</color>
+    <color name="text_secondary">#64748B</color>
+    <color name="border">#E2E8F0</color>
+    <color name="border_input">#CBD7DE</color>
+    <color name="border_message">#D5E2E9</color>
+    <color name="secondary_button">#E2E8F0</color>
+    <color name="photo_button">#EFF6FF</color>
+</resources>
