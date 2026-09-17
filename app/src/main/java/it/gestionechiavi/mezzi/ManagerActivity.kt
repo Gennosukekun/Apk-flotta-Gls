@@ -1,133 +1,35 @@
 package it.gestionechiavi.mezzi
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
-import android.view.View
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.URLEncoder
 
 class ManagerActivity : AppCompatActivity() {
     private lateinit var root: LinearLayout
-    private var manager = ""
-    private var managerToken = ""
-    private var drivers = JSONArray()
-
-    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
-    private fun color(id: Int) = getColor(id)
-    private fun shape(fill: Int, radius: Int = 18, stroke: Int? = null) = GradientDrawable().apply {
-        setColor(fill); cornerRadius = dp(radius).toFloat(); stroke?.let { setStroke(dp(1), it) }
-    }
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(52), dp(20), dp(28))
-        }
-        setContentView(ScrollView(this).apply {
-            setBackgroundColor(color(R.color.app_background)); isFillViewport = true; addView(root)
-        })
-        showLogin()
-    }
-
-    private fun tv(value: String, size: Float = 16f, primary: Boolean = true, bold: Boolean = false) = TextView(this).apply {
-        text = value; textSize = size; setTextColor(color(if (primary) R.color.text_primary else R.color.text_secondary))
-        if (bold) setTypeface(typeface, Typeface.BOLD)
-    }
-
-    private fun title(value: String) = tv(value, 32f, true, true).apply { setPadding(0, dp(3), 0, dp(4)) }
-    private fun eyebrow(value: String) = tv(value, 12f, false, true).apply { letterSpacing = .12f }
-
-    private fun input(hintText: String, password: Boolean = false) = EditText(this).apply {
-        hint = hintText; setHintTextColor(color(R.color.text_secondary)); setTextColor(color(R.color.text_primary)); textSize = 16f
-        setPadding(dp(16), 0, dp(16), 0); background = shape(color(R.color.surface_input), 14, color(R.color.border_input))
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56)).apply { topMargin = dp(12) }
-        if (password) inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-    }
-
-    private fun button(label: String, primary: Boolean = true, action: () -> Unit) = Button(this).apply {
-        text = label; isAllCaps = false; textSize = 16f; setTypeface(typeface, Typeface.BOLD)
-        setTextColor(if (primary) Color.WHITE else color(R.color.text_primary))
-        backgroundTintList = android.content.res.ColorStateList.valueOf(color(if (primary) R.color.primary else R.color.secondary_button))
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56)).apply { topMargin = dp(12) }
-        setOnClickListener { action() }
-    }
-
-    private fun card(): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(20)); background = shape(color(R.color.surface), 20, color(R.color.border))
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(18) }
-    }
-
-    private fun showLogin() {
-        root.removeAllViews()
-        root.addView(eyebrow("GESTIONE FLOTTA"))
-        root.addView(title("Area Responsabile"))
-        root.addView(tv("Accesso riservato alla gestione della flotta.", 14f, false))
-        val loginCard = card()
-        loginCard.addView(tv("ACCESSO RESPONSABILE", 11f, false, true))
-        val name = input("Nome responsabile")
-        val pin = input("PIN", true)
-        val message = tv("", 14f, false, true).apply { setPadding(0, dp(12), 0, 0) }
-        loginCard.addView(name); loginCard.addView(pin)
-        loginCard.addView(button("Accedi") {
-            val body = JSONObject().put("name", name.text.toString().trim()).put("pin", pin.text.toString().trim())
-            Api.postJson("/manager-login", body) { code, response -> runOnUiThread {
-                if (code in 200..299) {
-                    val obj = JSONObject(response); manager = obj.optString("name"); managerToken = obj.optString("token"); showDashboard()
-                } else message.text = runCatching { JSONObject(response).optString("error") }.getOrDefault("Accesso non riuscito")
-            }}
-        })
-        loginCard.addView(message)
-        root.addView(loginCard)
-        root.addView(button("Torna ad autista", false) { finish() })
-    }
-
-    private fun showDashboard() {
-        root.removeAllViews()
-        root.addView(eyebrow("GESTIONE FLOTTA")); root.addView(title("Dashboard")); root.addView(tv("Responsabile: $manager", 14f, false))
-
-        val statsCard = card(); statsCard.addView(tv("PANORAMICA", 11f, false, true))
-        val status = tv("Caricamento dati…", 19f, true, true).apply { setPadding(0, dp(10), 0, 0) }; statsCard.addView(status); root.addView(statsCard)
-        Api.get("/manager-dashboard", managerToken) { code, response -> runOnUiThread {
-            status.text = if (code in 200..299) {
-                val stats = JSONObject(response).optJSONObject("stats")
-                "${stats?.optInt("assigned",0)} chiavi fuori   •   ${stats?.optInt("available",0)} disponibili\n${stats?.optInt("drivers",0)} autisti attivi"
-            } else "Dashboard non disponibile ($code)"
-        }}
-
-        val deviceCard = card(); deviceCard.addView(tv("ASSOCIA DISPOSITIVO", 11f, false, true)); deviceCard.addView(tv("Collega questo telefono all'autista che lo utilizzerà.", 14f, false).apply { setPadding(0, dp(7), 0, 0) })
-        val spinner = Spinner(this).apply {
-            background = shape(color(R.color.surface_input), 14, color(R.color.border_input)); setPadding(dp(14),0,dp(14),0)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(56)).apply { topMargin=dp(14) }
-        }
-        val feedback = tv("", 14f, false, true).apply { setPadding(0,dp(10),0,0) }
-        deviceCard.addView(spinner)
-        Api.get("/manager-habitual", managerToken) { code, response -> runOnUiThread {
-            if (code in 200..299) {
-                drivers = JSONObject(response).optJSONArray("drivers") ?: JSONArray()
-                val names = (0 until drivers.length()).map { i -> val d=drivers.getJSONObject(i); val c=d.optInt("code"); val l=d.optString("code_label").ifBlank{c.toString()}; "${d.optString("name")} · $l" }
-                spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, names)
-            } else feedback.text = "Impossibile caricare autisti ($code)"
-        }}
-        deviceCard.addView(button("Associa telefono") {
-            if (drivers.length()==0) return@button
-            val d=drivers.getJSONObject(spinner.selectedItemPosition)
-            val body=JSONObject().put("driver_code",d.optInt("code")).put("device_label","${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
-            Api.postJson("/device-register",body,managerToken){code,response->runOnUiThread{
-                if(code in 200..299){
-                    val obj=JSONObject(response); val rd=obj.getJSONObject("driver"); val c=rd.optInt("code"); val l=rd.optString("code_label").ifBlank{c.toString()}
-                    getSharedPreferences("device",MODE_PRIVATE).edit().putString("device_token",obj.getString("device_token")).putInt("driver",c).putString("driver_name",rd.optString("name")).putString("driver_label",l).apply()
-                    feedback.text="Dispositivo associato a ${rd.optString("name")}"
-                } else feedback.text=runCatching{JSONObject(response).optString("error")}.getOrDefault("Associazione non riuscita")
-            }}
-        })
-        deviceCard.addView(feedback); root.addView(deviceCard)
-        root.addView(button("Torna ad autista", false){finish()})
-        root.addView(button("Esci dall'area responsabile", false){manager="";managerToken="";showLogin()})
-    }
+    private var manager=""; private var managerToken=""; private var drivers=JSONArray(); private var vehicles=JSONArray()
+    private fun dp(v:Int)=(v*resources.displayMetrics.density).toInt(); private fun color(id:Int)=getColor(id)
+    private fun shape(fill:Int,r:Int=18,stroke:Int?=null)=GradientDrawable().apply{setColor(fill);cornerRadius=dp(r).toFloat();stroke?.let{setStroke(dp(1),it)}}
+    override fun onCreate(b:Bundle?){super.onCreate(b);root=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(52),dp(20),dp(28))};setContentView(ScrollView(this).apply{setBackgroundColor(color(R.color.app_background));isFillViewport=true;addView(root)});showLogin()}
+    private fun tv(s:String,size:Float=16f,primary:Boolean=true,bold:Boolean=false)=TextView(this).apply{text=s;textSize=size;setTextColor(color(if(primary)R.color.text_primary else R.color.text_secondary));if(bold)setTypeface(typeface,Typeface.BOLD);setPadding(0,dp(4),0,dp(4))}
+    private fun input(h:String)=EditText(this).apply{hint=h;setTextColor(color(R.color.text_primary));setHintTextColor(color(R.color.text_secondary));background=shape(color(R.color.surface_input),14,color(R.color.border_input));setPadding(dp(14),0,dp(14),0);layoutParams=LinearLayout.LayoutParams(-1,dp(54)).apply{topMargin=dp(8)}}
+    private fun button(s:String,primary:Boolean=true,action:()->Unit)=Button(this).apply{text=s;isAllCaps=false;textSize=15f;setTypeface(typeface,Typeface.BOLD);setTextColor(if(primary)Color.WHITE else color(R.color.text_primary));backgroundTintList=android.content.res.ColorStateList.valueOf(color(if(primary)R.color.primary else R.color.secondary_button));layoutParams=LinearLayout.LayoutParams(-1,dp(54)).apply{topMargin=dp(10)};setOnClickListener{action()}}
+    private fun card()=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(18),dp(18),dp(18));background=shape(color(R.color.surface),20,color(R.color.border));layoutParams=LinearLayout.LayoutParams(-1,-2).apply{topMargin=dp(16)}}
+    private fun label(d:JSONObject):String{val c=d.optInt("code");val raw=if(d.isNull("code_label"))"" else d.optString("code_label");return raw.takeIf{it.isNotBlank()&&it!="null"}?:c.toString()}
+    private fun showLogin(){root.removeAllViews();root.addView(tv("GESTIONE FLOTTA",12f,false,true));root.addView(tv("Area Responsabile",32f,true,true));val c=card();val name=input("Nome responsabile");val pin=input("PIN").apply{inputType=InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD};val msg=tv("",14f,false,true);c.addView(name);c.addView(pin);c.addView(button("Accedi"){Api.postJson("/manager-login",JSONObject().put("name",name.text.toString().trim()).put("pin",pin.text.toString().trim())){code,r->runOnUiThread{if(code in 200..299){val o=JSONObject(r);manager=o.optString("name");managerToken=o.optString("token");showDashboard()}else msg.text="Accesso non riuscito"}}});c.addView(msg);root.addView(c);root.addView(button("Torna ad autista",false){finish()})}
+    private fun showDashboard(){root.removeAllViews();root.addView(tv("GESTIONE FLOTTA",12f,false,true));root.addView(tv("Dashboard",32f,true,true));root.addView(tv("Responsabile: $manager",14f,false));addOverview();addActive();addDeviceAndHabitual();addHistory();addPhotos();root.addView(button("Torna ad autista",false){finish()});root.addView(button("Esci dall'area responsabile",false){manager="";managerToken="";showLogin()})}
+    private fun addOverview(){val c=card();c.addView(tv("PANORAMICA",11f,false,true));val s=tv("Caricamento…",19f,true,true);c.addView(s);root.addView(c);Api.get("/manager-dashboard",managerToken){code,r->runOnUiThread{if(code in 200..299){val st=JSONObject(r).optJSONObject("stats");s.text="${st?.optInt("assigned",0)} chiavi fuori   •   ${st?.optInt("available",0)} disponibili\n${st?.optInt("drivers",0)} autisti attivi"}else s.text="Dashboard non disponibile ($code)"}}}
+    private fun addActive(){val c=card();c.addView(tv("CHIAVI ATTUALMENTE FUORI",11f,false,true));val list=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};c.addView(list);root.addView(c);fun load(){Api.get("/manager-dashboard",managerToken){code,r->runOnUiThread{list.removeAllViews();if(code !in 200..299){list.addView(tv("Dati non disponibili ($code)",14f,false));return@runOnUiThread};val a=JSONObject(r).optJSONArray("active")?:JSONArray();if(a.length()==0)list.addView(tv("Nessuna chiave assegnata.",14f,false));for(i in 0 until a.length()){val x=a.getJSONObject(i);list.addView(tv("${x.optString("name")} · ${x.optInt("driver_code")}\n${x.optString("plate")} · ${x.optString("vehicle_type")}",15f,true,true));list.addView(button("Chiudi manualmente",false){val e=EditText(this);e.hint="Motivo obbligatorio";AlertDialog.Builder(this).setTitle("Chiusura manuale").setView(e).setNegativeButton("Annulla",null).setPositiveButton("Chiudi"){_,_->val reason=e.text.toString().trim();if(reason.isNotBlank())Api.postJson("/manager-close",JSONObject().put("id",x.optString("id")).put("reason",reason),managerToken){_,_->runOnUiThread{load()}}}.show()})}}}};load()}
+    private fun addDeviceAndHabitual(){val c=card();c.addView(tv("AUTISTI, DISPOSITIVI E FURGONE ABITUALE",11f,false,true));val ds=Spinner(this);val vs=Spinner(this);c.addView(ds);c.addView(vs);val feedback=tv("",14f,false,true);Api.get("/manager-habitual",managerToken){code,r->runOnUiThread{if(code in 200..299){val o=JSONObject(r);drivers=o.optJSONArray("drivers")?:JSONArray();vehicles=o.optJSONArray("vehicles")?:JSONArray();ds.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,(0 until drivers.length()).map{i->val d=drivers.getJSONObject(i);"${d.optString("name")} · ${label(d)}"});vs.adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,listOf("Nessun furgone abituale")+(0 until vehicles.length()).map{i->vehicles.getJSONObject(i).optString("plate")})}else feedback.text="Impossibile caricare autisti ($code)"}};c.addView(button("Associa questo telefono"){if(drivers.length()>0){val d=drivers.getJSONObject(ds.selectedItemPosition);Api.postJson("/device-register",JSONObject().put("driver_code",d.optInt("code")).put("device_label","${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"),managerToken){code,r->runOnUiThread{if(code in 200..299){val o=JSONObject(r);val rd=o.getJSONObject("driver");getSharedPreferences("device",MODE_PRIVATE).edit().putString("device_token",o.getString("device_token")).putInt("driver",rd.optInt("code")).putString("driver_name",rd.optString("name")).putString("driver_label",label(rd)).apply();feedback.text="Telefono associato a ${rd.optString("name")}"}else feedback.text="Associazione non riuscita ($code)"}}}});c.addView(button("Salva furgone abituale",false){if(drivers.length()>0){val d=drivers.getJSONObject(ds.selectedItemPosition);val plate=if(vs.selectedItemPosition==0)"" else vehicles.getJSONObject(vs.selectedItemPosition-1).optString("plate");Api.postJson("/manager-habitual",JSONObject().put("driver_code",d.optInt("code")).put("plate",plate),managerToken){code,_->runOnUiThread{feedback.text=if(code in 200..299)"Furgone abituale aggiornato" else "Errore aggiornamento ($code)"}}}});c.addView(feedback);root.addView(c)}
+    private fun addHistory(){val c=card();c.addView(tv("STORICO RITIRI E RESTITUZIONI",11f,false,true));val plate=input("Targa (facoltativa)");val date=input("Data AAAA-MM-GG (facoltativa)");val out=tv("",14f,false);c.addView(plate);c.addView(date);c.addView(button("Cerca storico",false){val q="?plate=${URLEncoder.encode(plate.text.toString(),"UTF-8")}&date=${URLEncoder.encode(date.text.toString(),"UTF-8")}";Api.get("/manager-history$q",managerToken){code,r->runOnUiThread{if(code in 200..299){val a=JSONArray(r);out.text=(0 until a.length()).joinToString("\n\n"){i->val x=a.getJSONObject(i);"${x.optString("plate")} · ${x.optString("name")} (${x.optInt("driver_code")})\nRitiro: ${x.optString("checkout_at")}\nRientro: ${x.optString("return_at").ifBlank{"IN CORSO"}}"}.ifBlank{"Nessun risultato"}}else out.text="Errore ricerca ($code)"}}});c.addView(out);root.addView(c)}
+    private fun addPhotos(){val c=card();c.addView(tv("FOTO MEZZI",11f,false,true));val plate=input("Targa (facoltativa)");val out=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL};c.addView(plate);c.addView(button("Cerca foto",false){Api.get("/manager-photos?plate=${URLEncoder.encode(plate.text.toString(),"UTF-8")}",managerToken){code,r->runOnUiThread{out.removeAllViews();if(code in 200..299){val a=JSONArray(r);if(a.length()==0)out.addView(tv("Nessuna foto trovata",14f,false));for(i in 0 until a.length()){val x=a.getJSONObject(i);out.addView(button("${x.optString("plate")} · ${x.optString("name")} · ${x.optString("created_at")}",false){startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(x.optString("photo_url"))))})}}else out.addView(tv("Errore ricerca foto ($code)",14f,false))}}});c.addView(out);root.addView(c)}
 }
