@@ -29,9 +29,11 @@ class ManagerActivity : AppCompatActivity() {
         setPadding(0, 12, 0, 12)
     }
 
-    private fun input(hintText: String, pin: Boolean = false) = EditText(this).apply {
+    private fun input(hintText: String, password: Boolean = false) = EditText(this).apply {
         hint = hintText
-        if (pin) inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        if (password) {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
     }
 
     private fun btn(label: String, action: () -> Unit) = Button(this).apply {
@@ -76,7 +78,6 @@ class ManagerActivity : AppCompatActivity() {
         root.removeAllViews()
         root.addView(tv("Area Responsabile", 30f))
         root.addView(tv("Responsabile: $manager"))
-
         val status = tv("Caricamento dashboard…")
         root.addView(status)
         Api.get("/manager-dashboard", managerToken) { code, response ->
@@ -84,18 +85,14 @@ class ManagerActivity : AppCompatActivity() {
                 status.text = if (code in 200..299) {
                     val stats = JSONObject(response).optJSONObject("stats")
                     "Chiavi assegnate: ${stats?.optInt("assigned", 0)} · Disponibili: ${stats?.optInt("available", 0)} · Autisti: ${stats?.optInt("drivers", 0)}"
-                } else {
-                    "Dashboard non disponibile ($code)"
-                }
+                } else "Dashboard non disponibile ($code)"
             }
         }
-
         root.addView(tv("Associa questo dispositivo", 22f))
         root.addView(tv("Seleziona l'autista che userà permanentemente questo telefono. Una nuova associazione sostituisce quella precedente per lo stesso autista."))
         val spinner = Spinner(this)
         val feedback = tv("")
         root.addView(spinner)
-
         Api.get("/manager-habitual", managerToken) { code, response ->
             runOnUiThread {
                 if (code in 200..299) {
@@ -107,12 +104,9 @@ class ManagerActivity : AppCompatActivity() {
                         "${driver.optString("name")} · $label"
                     }
                     spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, names)
-                } else {
-                    feedback.text = "Impossibile caricare autisti ($code)"
-                }
+                } else feedback.text = "Impossibile caricare autisti ($code)"
             }
         }
-
         root.addView(btn("Associa telefono all'autista") {
             if (drivers.length() == 0) return@btn
             val driver = drivers.getJSONObject(spinner.selectedItemPosition)
@@ -133,14 +127,10 @@ class ManagerActivity : AppCompatActivity() {
                             .putString("driver_label", label)
                             .apply()
                         feedback.text = "Dispositivo associato a ${registeredDriver.optString("name")}"
-                    } else {
-                        feedback.text = runCatching { JSONObject(response).optString("error") }
-                            .getOrDefault("Associazione non riuscita")
-                    }
+                    } else feedback.text = runCatching { JSONObject(response).optString("error") }.getOrDefault("Associazione non riuscita")
                 }
             }
         })
-
         root.addView(feedback)
         root.addView(btn("Torna ad autista") { finish() })
         root.addView(btn("Esci area responsabile") {
