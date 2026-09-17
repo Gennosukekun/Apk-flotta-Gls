@@ -1,5 +1,4 @@
 package it.gestionechiavi.mezzi
-
 import android.content.*
 import android.os.Bundle
 import android.view.View
@@ -7,25 +6,14 @@ import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import org.json.*
-
-data class Driver(val code:Int,val name:String,val label:String){override fun toString()="$name · $label"}
-
 class MainActivity:AppCompatActivity(){
-    private lateinit var prefs:android.content.SharedPreferences
-    private var drivers=listOf<Driver>()
-    private var currentAssignment:String?=null
-    private val scanLauncher=registerForActivityResult(ActivityResultContracts.StartActivityForResult()){r->if(r.resultCode==RESULT_OK)r.data?.getStringExtra("qr")?.let{submitScan(it)}}
-    override fun onCreate(b:Bundle?){
-        super.onCreate(b);setContentView(R.layout.activity_main);prefs=getSharedPreferences("device",MODE_PRIVATE)
-        findViewById<Button>(R.id.scan).setOnClickListener{if(prefs.getInt("driver",0)==0)Toast.makeText(this,"Prima associa l'autista",Toast.LENGTH_SHORT).show()else scanLauncher.launch(Intent(this,ScannerActivity::class.java))}
-        findViewById<Button>(R.id.saveDriver).setOnClickListener{val d=drivers.getOrNull(findViewById<Spinner>(R.id.driverSpinner).selectedItemPosition);if(d==null){findViewById<TextView>(R.id.message).text="Elenco autisti non disponibile. Riprova tra qualche secondo.";return@setOnClickListener};prefs.edit().putInt("driver",d.code).putString("driver_name",d.name).putString("driver_label",d.label).apply();render();refresh()}
-        findViewById<Button>(R.id.photo).setOnClickListener{startActivity(Intent(this,PhotoActivity::class.java).putExtra("assignment_id",currentAssignment).putExtra("driver_code",prefs.getInt("driver",0)))}
-        findViewById<Button>(R.id.changeDriver).setOnClickListener{startActivity(Intent(this,ManagerActivity::class.java))}
-        load()
-    }
-    private fun load(){findViewById<TextView>(R.id.message).text="Caricamento autisti…";Api.get("/drivers"){c,s->runOnUiThread{if(c !in 200..299){findViewById<TextView>(R.id.message).text="Impossibile caricare gli autisti (errore $c).";return@runOnUiThread};try{val t=s.trim();val a=when{t.startsWith("[")->JSONArray(t);t.startsWith("{")->{val r=JSONObject(t);r.optJSONArray("drivers")?:r.optJSONArray("data")?:r.optJSONArray("items")?:JSONArray()};else->JSONArray()};drivers=(0 until a.length()).mapNotNull{i->val o=a.optJSONObject(i)?:return@mapNotNull null;val code=o.optInt("code",0);val name=o.optString("name","").trim();if(code==0||name.isBlank())return@mapNotNull null;val label=if(o.isNull("code_label")||o.optString("code_label").isBlank())code.toString()else o.optString("code_label");Driver(code,name,label)};findViewById<Spinner>(R.id.driverSpinner).adapter=ArrayAdapter(this,android.R.layout.simple_spinner_dropdown_item,drivers);findViewById<TextView>(R.id.message).text=if(drivers.isEmpty())"Nessun autista disponibile."else"";render();refresh()}catch(e:Exception){drivers=emptyList();findViewById<TextView>(R.id.message).text="Errore nel caricamento dell'elenco autisti."}}}}
-    private fun render(){val c=prefs.getInt("driver",0);findViewById<TextView>(R.id.driver).text=if(c==0)"Autista non configurato"else"Autista: ${prefs.getString("driver_name","")} · ${prefs.getString("driver_label",c.toString())}";findViewById<Spinner>(R.id.driverSpinner).visibility=if(c==0)View.VISIBLE else View.GONE;findViewById<Button>(R.id.saveDriver).visibility=if(c==0)View.VISIBLE else View.GONE}
-    private fun refresh(){val c=prefs.getInt("driver",0);if(c==0)return;Api.get("/assignment-current?driver_code=$c"){status,s->runOnUiThread{if(status !in 200..299)return@runOnUiThread;val root=runCatching{JSONObject(s)}.getOrNull();val o=root?.optJSONObject("assignment")?:root;if(o==null||!o.has("id")||o.isNull("id")){currentAssignment=null;findViewById<TextView>(R.id.status).text="Nessuna chiave assegnata";findViewById<Button>(R.id.photo).visibility=View.GONE}else{currentAssignment=o.optString("id");findViewById<TextView>(R.id.status).text="Chiave assegnata: ${o.optString("plate")}";val changed=root?.optBoolean("changed_vehicle",o.optBoolean("changed_vehicle",false))?:false;findViewById<Button>(R.id.photo).visibility=if(changed)View.VISIBLE else View.GONE}}}}
-    private fun submitScan(q:String){Api.postJson("/scan",JSONObject().put("driver_code",prefs.getInt("driver",0)).put("qr_code",q)){_,s->runOnUiThread{val o=runCatching{JSONObject(s)}.getOrNull();findViewById<TextView>(R.id.message).text=o?.optString("message",o.optString("error","Operazione completata"))?:"Errore";refresh()}}}
-    override fun onResume(){super.onResume();if(::prefs.isInitialized)refresh()}
+ private lateinit var prefs:android.content.SharedPreferences; private var currentAssignment:String?=null
+ private val scanLauncher=registerForActivityResult(ActivityResultContracts.StartActivityForResult()){r->if(r.resultCode==RESULT_OK)r.data?.getStringExtra("qr")?.let{submitScan(it)}}
+ override fun onCreate(b:Bundle?){super.onCreate(b);setContentView(R.layout.activity_main);prefs=getSharedPreferences("device",MODE_PRIVATE);findViewById<Button>(R.id.scan).setOnClickListener{if(token().isBlank())Toast.makeText(this,"Dispositivo non associato. Accedi come responsabile per associarlo.",Toast.LENGTH_LONG).show()else scanLauncher.launch(Intent(this,ScannerActivity::class.java))};findViewById<Button>(R.id.photo).setOnClickListener{startActivity(Intent(this,PhotoActivity::class.java).putExtra("assignment_id",currentAssignment).putExtra("driver_code",prefs.getInt("driver",0)).putExtra("device_token",token()))};findViewById<Button>(R.id.changeDriver).setOnClickListener{startActivity(Intent(this,ManagerActivity::class.java))};findViewById<Spinner>(R.id.driverSpinner).visibility=View.GONE;findViewById<Button>(R.id.saveDriver).visibility=View.GONE;render();refresh()}
+ private fun token()=prefs.getString("device_token","").orEmpty()
+ private fun render(){val c=prefs.getInt("driver",0);findViewById<TextView>(R.id.driver).text=if(token().isBlank())"Dispositivo non associato" else "Autista: ${prefs.getString("driver_name","")} · ${prefs.getString("driver_label",c.toString())}";findViewById<TextView>(R.id.message).text=if(token().isBlank())"Un responsabile deve associare questo telefono a un autista." else ""}
+ private fun refresh(){val t=token();if(t.isBlank())return;Api.get("/device-me",t){status,s->runOnUiThread{if(status==401){prefs.edit().clear().apply();render();return@runOnUiThread};if(status !in 200..299){findViewById<TextView>(R.id.message).text="Errore collegamento dispositivo ($status)";return@runOnUiThread};val d=runCatching{JSONObject(s).getJSONObject("driver")}.getOrNull();if(d!=null){val code=d.optInt("code");val name=d.optString("name");val label=d.optString("code_label").ifBlank{code.toString()};prefs.edit().putInt("driver",code).putString("driver_name",name).putString("driver_label",label).apply();render()};loadAssignment(t)}}}
+ private fun loadAssignment(t:String){Api.get("/assignment-current",t){status,s->runOnUiThread{if(status !in 200..299)return@runOnUiThread;val o=if(s.trim()=="null")null else runCatching{JSONObject(s)}.getOrNull();if(o==null||!o.has("id")){currentAssignment=null;findViewById<TextView>(R.id.status).text="Nessuna chiave assegnata";findViewById<Button>(R.id.photo).visibility=View.GONE}else{currentAssignment=o.optString("id");findViewById<TextView>(R.id.status).text="Chiave assegnata: ${o.optString("plate")}";findViewById<Button>(R.id.photo).visibility=if(o.optBoolean("changed_vehicle",false))View.VISIBLE else View.GONE}}}}
+ private fun submitScan(q:String){Api.postJson("/scan",JSONObject().put("qr_code",q),token()){c,s->runOnUiThread{val o=runCatching{JSONObject(s)}.getOrNull();findViewById<TextView>(R.id.message).text=if(c in 200..299)if(o?.optString("action")=="returned")"Chiave restituita" else "Chiave assegnata" else o?.optString("error","Errore $c")?:"Errore $c";refresh()}}}
+ override fun onResume(){super.onResume();if(::prefs.isInitialized){render();refresh()}}
 }
