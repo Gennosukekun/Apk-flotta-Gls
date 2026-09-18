@@ -1,15 +1,6 @@
 <resources>
-    <color name="primary">#1D4ED8</color>
-    <color name="primary_dark">#173B57</color>
-    <color name="app_background">#F3F6FA</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="surface_input">#F8FAFB</color>
-    <color name="surface_message">#EAF2F6</color>
-    <color name="text_primary">#172033</color>
-    <color name="text_secondary">#64748B</color>
-    <color name="border">#E2E8F0</color>
-    <color name="border_input">#CBD7DE</color>
-    <color name="border_message">#D5E2E9</color>
-    <color name="secondary_button">#E2E8F0</color>
-    <color name="photo_button">#EFF6FF</color>
+<color name="primary">#2563EB</color><color name="primary_dark">#1E40AF</color><color name="primary_soft">#EAF1FF</color>
+<color name="app_background">#F6F8FC</color><color name="surface">#FFFFFF</color><color name="surface_input">#F8FAFC</color><color name="surface_message">#EEF4FF</color>
+<color name="text_primary">#111827</color><color name="text_secondary">#667085</color><color name="border">#E6EAF0</color><color name="border_input">#D8DEE8</color><color name="border_message">#D7E4FF</color>
+<color name="secondary_button">#EEF2F7</color><color name="photo_button">#EAF1FF</color><color name="success_soft">#ECFDF3</color><color name="warning_soft">#FFF7E6</color>
 </resources>
